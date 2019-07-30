@@ -1,11 +1,27 @@
 #include <array>
-#include <math.h>
+#include <cmath>
 #include <iostream> 
 #include <algorithm>
 #include <vector>
 #include <array>
 #include "stdio.h"
 using namespace std;
+
+class Octree {
+	public:
+
+	double layers;
+	vector<double> currentBox;
+
+	void setLayers(double layer) {
+		layers = layer;
+	}
+
+	double getLayers() {
+		return layers;
+	}
+
+};
 
 class Ray {
 	public:
@@ -73,9 +89,6 @@ class Ray {
 		return xyz;
 	}
 };
-
-
-
 
 vector<double> findPath(double current, vector<double> path, Ray ray) {
 	double x, y, z, box;
@@ -169,18 +182,89 @@ vector<double> findPath(double current, vector<double> path, Ray ray) {
 
 }
 
-double isIntersect(double t, double a1, double a2, double b1, double b2) {
-	double a = a1 + t * (a2 - a1);
-	double b = b1 + t * (b2 - b1);
+vector<double> getBox(double layers, vector<double> coord, string axis) {
 
-	if (a >= 0 && a <= 1 && b >= 0 && b <= 1) {
-		a = floor(a * 2);
-		b = floor(b * 2) * 2;
-		double box = a + b;
+	double total = 0;
+	vector<double> aBox;
+	vector<double> bBox;
+	vector<double> box;
+
+	for (int i = 0; i < layers; i++)
+	{
+		if (coord[0] > total + 128 / (pow(2, i)))
+		{
+			total += 128 / (pow(2, i));
+			aBox.push_back(1);
+		}
+		else
+		{
+			aBox.push_back(0);
+		}
+	}
+	total = 0;
+
+	for (int i = 0; i < layers; i++)
+	{
+		if (coord[1] > total + 128 / (pow(2, i)))
+		{
+			total += 128 / (pow(2, i));
+			bBox.push_back(1);
+		}
+		else
+		{
+			bBox.push_back(0);
+		}
+	}
+
+	if (axis == "x") {
+		for (int i = 0; i < layers; i++)
+		{
+			aBox[i] = floor(aBox[i] * 2) * 2;
+			box.push_back(aBox[i] + bBox[i]);
+		}
 		return box;
 	}
 
-	return 5;
+	if (axis == "y") {
+		for (int i = 0; i < layers; i++)
+		{
+			aBox[i] = floor(aBox[i] * 2) * 4;
+			box.push_back(aBox[i] + bBox[i]);
+		}
+		return box;
+	}
+
+	if (axis == "z") {
+		for (int i = 0; i < layers; i++)
+		{
+			aBox[i] = floor(aBox[i] * 2) * 4;
+			bBox[i] = floor(bBox[i] * 2) * 2;
+			box.push_back(aBox[i] + bBox[i]);
+		}
+		return box;
+	}
+}
+
+vector<double> firstContact(Ray ray, Octree oct) {
+	vector<double> coord;
+
+	coord = ray.getCoordAt("x", 0);
+	if (coord[0] >= 0 && coord[0] < 256 && coord[1] >= 0 && coord[1] < 256) {
+		return getBox(oct.getLayers(), coord, "x");
+	}
+
+	coord = ray.getCoordAt("y", 0);
+	if (coord[0] >= 0 && coord[0] < 256 && coord[1] >= 0 && coord[1] < 256) {
+		return getBox(oct.getLayers(), coord, "y");
+	}
+
+	coord = ray.getCoordAt("z", 0);
+	if (coord[0] >= 0 && coord[0] < 256 && coord[1] >= 0 && coord[1] < 256) {
+		return getBox(oct.getLayers(), coord, "z");
+	}
+
+	vector<double> bad = {8};
+	return bad;
 }
 
 double firstContact(Ray ray) {
@@ -214,94 +298,19 @@ double firstContact(Ray ray) {
 	return 8;
 }
 
-double firstContact(double x1, double y1, double z1, double x2, double y2, double z2) {
-	double contact;
-	double t;
-
-	// when x = 0
-	t = (0 - x1) / (x2 - x1);
-	contact = isIntersect(t, z1, z2, y1, y2);
-	if (contact != 5)
-	{
-		return contact;
-	}
-
-	// when x = 1
-	t = (1 - x1) / (x2 - x1);
-	contact = isIntersect(t, z1, z2, y1, y2);
-	if (contact != 5)
-	{
-		return contact + 4;
-	}
-
-	// when y = 0
-	t = (0 - y1) / (y2 - y1);
-	contact = isIntersect(t, z1, z2, x1, x2);
-	if (contact != 5)
-	{
-		if (contact > 1)
-		{
-			return contact + 2;
-		}
-		else
-		{
-			return contact;
-		}
-
-	}
-
-	// when y = 1
-	t = (1 - x1) / (x2 - x1);
-	contact = isIntersect(t, z1, z2, x1, x2);
-	if (contact != 5)
-	{
-		if (contact > 1)
-		{
-			return contact + 4;
-		}
-		else
-		{
-			return contact + 2;
-		}
-	}
-
-	// when z = 0
-	t = (0 - z1) / (z2 - z1);
-	contact = isIntersect(t, y1, y2, x1, x2);
-	if (contact != 5)
-	{
-		return contact * 2;
-	}
-
-	// when z = 1
-	t = (1 - z1) / (z2 - z1);
-	contact = isIntersect(t, y1, y2, x1, x2);
-	if (contact != 5)
-	{
-		contact = contact * 2 + 1;
-	}
-
-	cout << "no intersection" << endl;
-	return 9;
-}
-
 int main()
 {
+	Octree oct;
+	oct.setLayers(8);
+
 	Ray ray;
-	ray.populate(.25, .25, 0, 1, .25, .75);
+	ray.populate(-.5, 0, 0, 256, 256, 256);
 
-	double first = firstContact(ray);
-	if (first == 8)
-	{
-		return 0;
-	}
+	vector<double> first = firstContact(ray, oct);
 
-	vector<double> path = { first };
-	path = findPath(first, path, ray);
-	
-	for (int i = 0; i < path.size(); i++)
+	for (int i = 0; i < first.size(); i++)
 	{
-		cout << path[i] << endl;
+		cout << first[i] << endl;
 	}
 
 	return 0;
