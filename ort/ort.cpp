@@ -21,7 +21,28 @@ class Octree {
 		return layers;
 	}
 
+	vector<double> getBoxCoord(vector<double> box) {
+		double xValue = 0;
+		double yValue = 0;
+		double zValue = 0;
+		for (int i = 0; i < box.size(); i++)
+		{
+			if (box[i] > 3) {
+				xValue += 128 / (pow(2, i));
+			}
+			if (box[i] == 2 || box[i] == 3 || box[i] == 6 || box[i] == 7) {
+				yValue += 128 / (pow(2, i));
+			}
+			if (box[i] == 1 || box[i] == 3 || box[i] == 5 || box[i] == 7) {
+				zValue += 128 / (pow(2, i));
+			}
+		}
+		vector<double> boxCoord = {xValue, yValue, zValue};
+		return boxCoord;
+	}
+
 };
+
 
 class Ray {
 	public:
@@ -29,39 +50,7 @@ class Ray {
 	double x1, y1, z1, x2, y2, z2, t, x, y, z;
 
 	void populate(double x3, double y3, double z3, double x4, double y4, double z4) {
-
-		x1 = x3;
-		y1 = y3;
-		z1 = z3;
-		x2 = x4;
-		y2 = y4;
-		z2 = z4;
-
-	}
-
-	double getSign() {
-		double xSign = x1 - x2;
-		double ySign = y1 - y2;
-		double zSign = z1 - z2;
-		if (xSign != 0 || ySign != 0 || zSign != 0) {
-			if (xSign > 0) {
-				if (ySign > 0) {
-					if (zSign > 0) {
-						return 0;
-					}
-					else {
-						return 1;
-					}
-				}
-				else if (zSign > 0) {
-					return 2;
-				}
-				else
-				{
-					return 3;
-				}
-			}
-		}
+		x1 = x3; y1 = y3; z1 = z3; x2 = x4; y2 = y4; z2 = z4;
 	}
 
 	vector<double> getCoordAt(string axis, double value) {
@@ -89,6 +78,208 @@ class Ray {
 		return xyz;
 	}
 };
+
+double getSign(Ray ray, Octree oct, vector<double> first) {
+	vector<double> xyz = oct.getBoxCoord(first);
+	vector<double> ab;
+	double x = 4, y = 2, z = 1;
+
+	if (xyz[0] == 0) {
+		x = 0;
+		ab = ray.getCoordAt("x", 256);
+		if (ab[0] >= xyz[1]) {
+			y = 0;
+		}
+		if (ab[1] >= xyz[2]) {
+			z = 0;
+		}
+	}else if (xyz[1] == 0) {
+		y = 0;
+		ab = ray.getCoordAt("y", 256);
+		if (ab[0] >= xyz[0]) {
+			x = 0;
+		}
+		if (ab[1] >= xyz[2]) {
+			z = 0;
+		}
+	}else if (xyz[2] == 0) {
+		z = 0;
+		ab = ray.getCoordAt("z", 256);
+		if (ab[0] >= xyz[0]) {
+			x = 0;
+		}
+		if (ab[1] >= xyz[1]) {
+			y = 0;
+		}
+	}
+
+	return x + y + z;
+
+	
+}
+
+vector<vector<double>> findPath(vector<double> current, vector<double> currentCoords, vector<vector<double>> path, Ray ray, Octree oct) {
+	vector<double> xyz;
+	double sign = getSign(ray, oct, path[0]);
+	bool xyzDone;
+	bool done = true;
+	double layers = oct.getLayers();
+	
+	if (sign < 5) {
+		//x+
+		if (currentCoords[0] + 256 / (pow(2, layers)) < 256) {
+			xyz = ray.getCoordAt("x", currentCoords[0] + 256 / (pow(2, layers)));
+			if (xyz[0] <= currentCoords[1] + (256 / pow(2, layers)) && xyz[0] >= currentCoords[1] &&
+				xyz[1] <= currentCoords[2] + (256 / pow(2, layers)) && xyz[1] >= currentCoords[2]) {
+				xyzDone = false;
+				done = false;
+				for (int i = layers - 1; i >= 0; i--)
+				{
+					if (!xyzDone) {
+						if (current[i] < 4) {
+							current[i] += 4;
+							xyzDone = true;
+						}
+						else {
+							current[i] -= 4;
+						}
+					}
+				}
+				path.push_back(current);
+				currentCoords[0] += 256 / (pow(2, layers));
+			}
+		}
+	}
+	else if (currentCoords[0] - 256 / (pow(2, layers)) >= 0) {
+		//x-
+		xyz = ray.getCoordAt("x", currentCoords[0]);
+		if (xyz[0] <= currentCoords[1] + (256 / pow(2, layers)) && xyz[0] >= currentCoords[1] &&
+			xyz[1] <= currentCoords[2] + (256 / pow(2, layers)) && xyz[1] >= currentCoords[2]) {
+			xyzDone = false;
+			done = false;
+			for (int i = layers - 1; i >= 0; i--)
+			{
+				if (!xyzDone) {
+					if (current[i] > 3) {
+						current[i] -= 4;
+						xyzDone = true;
+					}
+					else {
+						current[i] += 4;
+					}
+				}
+			}
+			path.push_back(current);
+			currentCoords[0] -= 256 / (pow(2, layers));
+		}
+	}
+
+	if ((sign < 2 || sign == 4 || sign == 5)) {
+		//y+
+		if (currentCoords[1] + 256 / (pow(2, layers)) < 256) {
+			xyz = ray.getCoordAt("y", currentCoords[1] + 256 / (pow(2, layers)));
+			if (xyz[0] <= currentCoords[0] + (256 / pow(2, layers)) && xyz[0] >= currentCoords[0] &&
+				xyz[1] <= currentCoords[2] + (256 / pow(2, layers)) && xyz[1] >= currentCoords[2]) {
+				xyzDone = false;
+				done = false;
+				for (int i = layers - 1; i >= 0; i--)
+				{
+					if (!xyzDone) {
+						if (current[i] < 2 || current[i] == 4 || current[i] == 5) {
+							current[i] += 2;
+							xyzDone = true;
+						}
+						else {
+							current[i] -= 2;
+						}
+					}
+				}
+				path.push_back(current);
+				currentCoords[1] += 256 / (pow(2, layers));
+			}
+		}
+	}
+	else if (currentCoords[1] - 256 / (pow(2, layers)) >= 0) {
+		//y-
+		xyz = ray.getCoordAt("y", currentCoords[1]);
+		if (xyz[0] <= currentCoords[0] + (256 / pow(2, oct.layers)) && xyz[0] >= currentCoords[0] &&
+			xyz[1] <= currentCoords[2] + (256 / pow(2, oct.layers)) && xyz[1] >= currentCoords[2]) {
+			xyzDone = false;
+			done = false;
+			for (int i = layers - 1; i >= 0; i--)
+			{
+				if (!xyzDone) {
+					if (current[i] > 5 || current[i] == 2 || current[i] == 3) {
+						current[i] -= 2;
+						xyzDone = true;
+					}
+					else {
+						current[i] += 2;
+					}
+				}
+			}
+			path.push_back(current);
+			currentCoords[1] -= 256 / (pow(2, layers));
+		}
+	}
+
+	if ((sign == 0 || sign == 2 || sign == 4 || sign == 6)) {
+		//z+
+		if (currentCoords[2] + 256 / (pow(2, layers)) < 256) {
+			xyz = ray.getCoordAt("z", currentCoords[2] + 256 / (pow(2, layers)));
+			if (xyz[0] <= currentCoords[0] + (256 / pow(2, layers)) && xyz[0] >= currentCoords[0] &&
+				xyz[1] <= currentCoords[1] + (256 / pow(2, layers)) && xyz[1] >= currentCoords[1]) {
+				xyzDone = false;
+				done = false;
+				for (int i = layers - 1; i >= 0; i--)
+				{
+					if (!xyzDone) {
+						if (current[i] == 0 || current[i] == 2 || current[i] == 4 || current[i] == 6) {
+							current[i] += 1;
+							xyzDone = true;
+						}
+						else {
+							current[i] -= 1;
+						}
+					}
+				}
+				path.push_back(current);
+				currentCoords[2] += 256 / (pow(2, layers));
+			}
+		}
+	}
+	else if (currentCoords[2] - 256 / (pow(2, layers)) >= 0) {
+		//z-
+		xyz = ray.getCoordAt("z", currentCoords[2]);
+		if (xyz[0] <= currentCoords[0] + (256 / pow(2, layers)) && xyz[0] >= currentCoords[0] &&
+			xyz[1] <= currentCoords[1] + (256 / pow(2, layers)) && xyz[1] >= currentCoords[1]) {
+			xyzDone = false;
+			done = false;
+			for (int i = layers - 1; i >= 0; i--)
+			{
+				if (!xyzDone) {
+					if (current[i] == 1 || current[i] == 3 || current[i] == 5 || current[i] == 7) {
+						current[i] -= 1;
+						xyzDone = true;
+					}
+					else {
+						current[i] += 1;
+					}
+				}
+			}
+			path.push_back(current);
+			currentCoords[2] -= 256 / (pow(2, layers));
+		}
+	}
+
+	if (!done)
+	{
+		return findPath(current, currentCoords, path, ray, oct);
+	}
+
+	return path;
+	   
+}
 
 vector<double> findPath(double current, vector<double> path, Ray ray) {
 	double x, y, z, box;
@@ -182,12 +373,10 @@ vector<double> findPath(double current, vector<double> path, Ray ray) {
 
 }
 
-vector<double> getBox(double layers, vector<double> coord, string axis) {
+vector<double> getBoxAt(double layers, vector<double> coord, string axis) {
 
 	double total = 0;
-	vector<double> aBox;
-	vector<double> bBox;
-	vector<double> box;
+	vector<double> aBox, bBox, box;
 
 	for (int i = 0; i < layers; i++)
 	{
@@ -219,7 +408,7 @@ vector<double> getBox(double layers, vector<double> coord, string axis) {
 	if (axis == "x") {
 		for (int i = 0; i < layers; i++)
 		{
-			aBox[i] = floor(aBox[i] * 2) * 2;
+			aBox[i] = aBox[i] * 2;
 			box.push_back(aBox[i] + bBox[i]);
 		}
 		return box;
@@ -228,7 +417,7 @@ vector<double> getBox(double layers, vector<double> coord, string axis) {
 	if (axis == "y") {
 		for (int i = 0; i < layers; i++)
 		{
-			aBox[i] = floor(aBox[i] * 2) * 4;
+			aBox[i] = aBox[i] * 4;
 			box.push_back(aBox[i] + bBox[i]);
 		}
 		return box;
@@ -237,8 +426,8 @@ vector<double> getBox(double layers, vector<double> coord, string axis) {
 	if (axis == "z") {
 		for (int i = 0; i < layers; i++)
 		{
-			aBox[i] = floor(aBox[i] * 2) * 4;
-			bBox[i] = floor(bBox[i] * 2) * 2;
+			aBox[i] = aBox[i] * 4;
+			bBox[i] = bBox[i] * 2;
 			box.push_back(aBox[i] + bBox[i]);
 		}
 		return box;
@@ -250,52 +439,21 @@ vector<double> firstContact(Ray ray, Octree oct) {
 
 	coord = ray.getCoordAt("x", 0);
 	if (coord[0] >= 0 && coord[0] < 256 && coord[1] >= 0 && coord[1] < 256) {
-		return getBox(oct.getLayers(), coord, "x");
+		return getBoxAt(oct.getLayers(), coord, "x");
 	}
 
 	coord = ray.getCoordAt("y", 0);
 	if (coord[0] >= 0 && coord[0] < 256 && coord[1] >= 0 && coord[1] < 256) {
-		return getBox(oct.getLayers(), coord, "y");
+		return getBoxAt(oct.getLayers(), coord, "y");
 	}
 
 	coord = ray.getCoordAt("z", 0);
 	if (coord[0] >= 0 && coord[0] < 256 && coord[1] >= 0 && coord[1] < 256) {
-		return getBox(oct.getLayers(), coord, "z");
+		return getBoxAt(oct.getLayers(), coord, "z");
 	}
 
 	vector<double> bad = {8};
 	return bad;
-}
-
-double firstContact(Ray ray) {
-	vector<double> coord;
-	double box;
-
-	coord = ray.getCoordAt("x", 0);
-	if (coord[0] >= 0 && coord[0] <= 1 && coord[1] >= 0 && coord[1] <= 1) {
-		coord[0] = floor(coord[0] * 2) * 2;
-		coord[1] = floor(coord[1] * 2);
-		box = coord[0] + coord[1];
-		return box;
-	}
-
-	coord = ray.getCoordAt("y", 0);
-	if (coord[0] >= 0 && coord[0] <= 1 && coord[1] >= 0 && coord[1] <= 1) {
-		coord[0] = floor(coord[0] * 2) * 4;
-		coord[1] = floor(coord[1] * 2);
-		box = coord[0] + coord[1];
-		return box;
-	}
-
-	coord = ray.getCoordAt("z", 0);
-	if (coord[0] >= 0 && coord[0] <= 1 && coord[1] >= 0 && coord[1] <= 1) {
-		coord[0] = floor(coord[0] * 2) * 4;
-		coord[1] = floor(coord[1] * 2) * 2;
-		box = coord[0] + coord[1];
-		return box;
-	}
-
-	return 8;
 }
 
 int main()
@@ -304,13 +462,21 @@ int main()
 	oct.setLayers(8);
 
 	Ray ray;
-	ray.populate(-.5, 0, 0, 256, 256, 256);
+	ray.populate(0, 0, 0, 256, 256, 256);
 
 	vector<double> first = firstContact(ray, oct);
 
-	for (int i = 0; i < first.size(); i++)
+	vector<vector<double>> path = { {first} };
+
+	path = findPath(first, oct.getBoxCoord(first), path, ray, oct);
+
+	for (int i = 0; i < path.size(); i++)
 	{
-		cout << first[i] << endl;
+		for (int j = 0; j < oct.getLayers(); j++)
+		{
+			cout << path[i][j] << " ";
+		}
+		cout << endl;
 	}
 
 	return 0;
