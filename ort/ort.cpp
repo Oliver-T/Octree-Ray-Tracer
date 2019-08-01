@@ -4,29 +4,78 @@
 #include <algorithm>
 #include <vector>
 #include <array>
+#include <fstream>
 #include "stdio.h"
 using namespace std;
 
+/*
+
+Octree Ray Tracer - by Oliver Trad - 2019
+
+This program finds the path of a given vector defined by 2 points in 3 dimensions through an octree of a given layer size 1 through 8.
+The path is written to text file path.txt
+The octree is a cube with coordinates (0, 0, 0) to (255, 255, 255).
+
+								(255, 255, 255)
+				____________________
+			   /  3		 /  7	   /|
+			  /_________/_________/ |
+			 /  1	   /  5		 /| |
+			/_________/_________/ |7|
+			|         |         | | |
+			|  1      |  5      |5|/|
+			|         |         | | |
+			|_________|_________|/|6|
+			|         |         | | /
+			|  0      |  4      |4|/
+z  y 		|         |         | /
+| /			|_________|_________|/
+|/____x
+		(0, 0, 0)
+
+
+Each box is defined by a list of numbers from it's largest parent to it's smallest child.
+eg. box at (0, 0, 3) in an octree of 7 layers is defined as {0, 0, 0, 0, 0, 0, 4}
+
+*/
+
+/*
+Octrees are defined by it's number of layers: int layers
+
+functions:
+void setLayers(int)
+int getLayers()
+vector<double> getBoxCoord(vector<int>)
+*/
 class Octree {
 	public:
 
-	double layers;
-	vector<double> currentBox;
+	//default number of layers set to 1
+	int layers = 1;
 
-	void setLayers(double layer) {
+	//sets the Octrees layers to the given int layer
+	void setLayers(int layer) {
 		layers = layer;
 	}
 
-	double getLayers() {
+	//returns the Octrees set amount of layers
+	int getLayers() {
 		return layers;
 	}
 
-	vector<double> getBoxCoord(vector<double> box) {
+	//returns the coordinates of the given box as a vector<double>
+		//the coordinates of a box are defined by the corner of the box with the smallest coordinates
+		//eg. in an Octree with 1 layer, box {0} is defined by the coordinates {0, 0, 0}
+	vector<double> getBoxCoord(vector<int> box) {
+		//initialise (x, y, z) coordinates
 		double xValue = 0;
 		double yValue = 0;
 		double zValue = 0;
-		for (int i = 0; i < box.size(); i++)
+		//loop through each child of the box from largest to smallest
+		for (size_t i = 0; i < box.size(); i++)
 		{
+			//for each direction (x, y, z), check if the parent box is the further from (0, 0, 0)
+				//if so, add the distance of the child's coordinates in comparison to it's parent's coordinates
 			if (box[i] > 3) {
 				xValue += 128 / (pow(2, i));
 			}
@@ -37,25 +86,39 @@ class Octree {
 				zValue += 128 / (pow(2, i));
 			}
 		}
+		//define and return the given box's coordinates as a vector<double>
 		vector<double> boxCoord = {xValue, yValue, zValue};
 		return boxCoord;
 	}
 
 };
 
+/*
+Ray is the vector which travels through the octree defined by two points (x1, y1, z1), (x2, y2, z2)
 
+functions:
+void populate(double, double, double, double, double, double)
+vector<double> getCoordAt(string, double)
+*/
 class Ray {
 	public:
-
+	
+	//initialise the rays 2 defining points (x1, y1, z1), (x2, y2, z2) and variable t, x, y and z values
 	double x1, y1, z1, x2, y2, z2, t, x, y, z;
 
+	//define the ray by it's two points
 	void populate(double x3, double y3, double z3, double x4, double y4, double z4) {
 		x1 = x3; y1 = y3; z1 = z3; x2 = x4; y2 = y4; z2 = z4;
 	}
 
+	//returns the coordinates of the ray at any given axis and value
 	vector<double> getCoordAt(string axis, double value) {
+		//initialise coordinates
 		vector<double> xyz;
 
+		//check which axis is given
+			//calculate the coordinates of the other axis', add them to the xyz variable in
+			//order of x, y, z and return
 		if (axis == "x")
 		{
 			t = (value - x1) / (x2 - x1);
@@ -79,14 +142,146 @@ class Ray {
 	}
 };
 
-double getSign(Ray ray, Octree oct, vector<double> first) {
-	vector<double> xyz = oct.getBoxCoord(first);
-	vector<double> ab;
-	double x = 4, y = 2, z = 1;
+//returns the box value of the ray entry point from any given octree layer value,
+//2D coordinate and face of octree as a vector<int>. The face of octree is represented as 
+//x- where x=0, x+ where x=255 and so on.
+vector<int> getBoxAt(int layers, vector<double> coord, string axis) {
+	//initialise total value to compare against the given coordinates
+	int total = 0;
+	//initialise vectors for the box
+	vector<int> aBox, bBox, box;
 
+	//for each of the two given coordinates (a, b), find their box values in 2 dimensions
+	//(essentially a binary tree)
+	for (int i = 0; i < layers; i++)
+	{
+		if (coord[0] > total + 128 / (pow(2, i)))
+		{
+			total += 128 / (pow(2, i));
+			aBox.push_back(1);
+		}
+		else
+		{
+			aBox.push_back(0);
+		}
+	}
+	total = 0;
+
+	for (int i = 0; i < layers; i++)
+	{
+		if (coord[1] > total + 128 / (pow(2, i)))
+		{
+			total += 128 / (pow(2, i));
+			bBox.push_back(1);
+		}
+		else
+		{
+			bBox.push_back(0);
+		}
+	}
+
+	//check which side of the octree the first contact is, change the (a, b) values to 
+	//match and return.
+	if (axis == "x+" || axis == "x-") {
+		for (int i = 0; i < layers; i++)
+		{
+			aBox[i] = aBox[i] * 2;
+			if (axis == "x+") {
+				box.push_back(aBox[i] + bBox[i]);
+			}
+			else {
+				box.push_back(aBox[i] + bBox[i] + 4);
+			}
+			
+		}
+		return box;
+	}else if (axis == "y+" || axis == "y-") {
+		for (int i = 0; i < layers; i++)
+		{
+			aBox[i] = aBox[i] * 4;
+			if (axis == "y+") {
+				box.push_back(aBox[i] + bBox[i]);
+			}
+			else {
+				box.push_back(aBox[i] + bBox[i] + 2);
+			}
+		}
+		return box;
+	}else {
+		for (int i = 0; i < layers; i++)
+		{
+			aBox[i] = aBox[i] * 4;
+			bBox[i] = bBox[i] * 2;
+			box.push_back(aBox[i] + bBox[i]);
+		}
+		return box;
+	}
+}
+
+//returns the box value of the given ray's first contact of the given octree 
+vector<int> firstContact(Ray ray, Octree oct) {
+	//initialise the coordinates of the ray's first contact of the octree
+	vector<double> coord;
+
+	//find the coordinates of the ray at each face of the octree
+	//check whether the ray intersects the octree at each face
+		//find the box value with getBoxAt() and return 
+	coord = ray.getCoordAt("x", 0);
+	if (coord[0] >= 0 && coord[0] < 256 && coord[1] >= 0 && coord[1] < 256) {
+		return getBoxAt(oct.getLayers(), coord, "x+");
+	}
+
+	coord = ray.getCoordAt("x", 255);
+	if (coord[0] >= 0 && coord[0] < 256 && coord[1] >= 0 && coord[1] < 256) {
+		return getBoxAt(oct.getLayers(), coord, "x-");
+	}
+
+	coord = ray.getCoordAt("y", 0);
+	if (coord[0] >= 0 && coord[0] < 256 && coord[1] >= 0 && coord[1] < 256) {
+		return getBoxAt(oct.getLayers(), coord, "y+");
+	}
+
+	coord = ray.getCoordAt("y", 255);
+	if (coord[0] >= 0 && coord[0] < 256 && coord[1] >= 0 && coord[1] < 256) {
+		return getBoxAt(oct.getLayers(), coord, "y-");
+	}
+
+	coord = ray.getCoordAt("z", 0);
+	if (coord[0] >= 0 && coord[0] < 256 && coord[1] >= 0 && coord[1] < 256) {
+		return getBoxAt(oct.getLayers(), coord, "z");
+	}
+
+	vector<int> bad = { 8 };
+	return bad;
+}
+
+//finds the direction of the ray to optimise the path finding algorithm
+//returns as an int value from 0-7
+int getSign(Ray ray, Octree oct, vector<int> first) {
+	//set xyz to the coordinates of the first contact box
+	vector<double> xyz = oct.getBoxCoord(first);
+	//initialise vector ab to track coordinates 
+	vector<double> ab;
+	//initialise variables to track the direction the ray is travelling on each axis
+	//by default they are set to negative
+	int x = 4, y = 2, z = 1;
+
+	//check which face of the octree the first contact is		
 	if (xyz[0] == 0) {
+		//set the direction of the axis the face lies on to positive if the face is at 0
 		x = 0;
-		ab = ray.getCoordAt("x", 256);
+		//set ab to the coordinates of the other axis' further along the ray
+		ab = ray.getCoordAt("x", 255);
+		//check of the ray is travelling in a positive or negative direction for the axis in ab
+		if (ab[0] >= xyz[1]) {
+			//change x, y, z value to 0 if necessary
+			y = 0;
+		}
+		if (ab[1] >= xyz[2]) {
+			z = 0;
+		}
+	}else if (xyz[0] == 255) {
+		ab = ray.getCoordAt("x", 0);
 		if (ab[0] >= xyz[1]) {
 			y = 0;
 		}
@@ -95,16 +290,26 @@ double getSign(Ray ray, Octree oct, vector<double> first) {
 		}
 	}else if (xyz[1] == 0) {
 		y = 0;
-		ab = ray.getCoordAt("y", 256);
+		ab = ray.getCoordAt("y", 255);
 		if (ab[0] >= xyz[0]) {
 			x = 0;
 		}
 		if (ab[1] >= xyz[2]) {
 			z = 0;
 		}
-	}else if (xyz[2] == 0) {
+	}else if (xyz[1] == 255) {
+		y = 0;
+		ab = ray.getCoordAt("y", 0);
+		if (ab[0] >= xyz[0]) {
+			x = 0;
+		}
+		if (ab[1] >= xyz[2]) {
+			z = 0;
+		}
+	}
+	else if (xyz[2] == 0) {
 		z = 0;
-		ab = ray.getCoordAt("z", 256);
+		ab = ray.getCoordAt("z", 255);
 		if (ab[0] >= xyz[0]) {
 			x = 0;
 		}
@@ -113,26 +318,34 @@ double getSign(Ray ray, Octree oct, vector<double> first) {
 		}
 	}
 
+	//add the values together and return 
 	return x + y + z;
 
-	
 }
 
-vector<vector<double>> findPath(vector<double> current, vector<double> currentCoords, vector<vector<double>> path, Ray ray, Octree oct) {
+//finds and returns the path the ray takes through the octree as a vector<vector<int>>
+vector<vector<int>> findPath(vector<int> current, vector<double> currentCoords, vector<vector<int>> path, Ray ray, int sign, int layers) {
+	//initialise variable xyz to track coordinates
 	vector<double> xyz;
-	double sign = getSign(ray, oct, path[0]);
+	//initialise boolean variables to track if the task is complete
 	bool xyzDone;
 	bool done = true;
-	double layers = oct.getLayers();
-	
+
+	//for each axis
+	//check which direction the axis is travelling to dermine which neighbouring box along the axis to check
 	if (sign < 5) {
+		//check if there exists a neighbour in the current direction
 		//x+
 		if (currentCoords[0] + 256 / (pow(2, layers)) < 256) {
+			//get the 2D coordinates of the ray at the intersection point of the current and neighbouring box
 			xyz = ray.getCoordAt("x", currentCoords[0] + 256 / (pow(2, layers)));
+			//check if the ray intersects the neighbour
 			if (xyz[0] <= currentCoords[1] + (256 / pow(2, layers)) && xyz[0] >= currentCoords[1] &&
 				xyz[1] <= currentCoords[2] + (256 / pow(2, layers)) && xyz[1] >= currentCoords[2]) {
+				//change booleans to represent the tasks are incomplete
 				xyzDone = false;
 				done = false;
+				//change the current box to the neighbouring box
 				for (int i = layers - 1; i >= 0; i--)
 				{
 					if (!xyzDone) {
@@ -145,7 +358,9 @@ vector<vector<double>> findPath(vector<double> current, vector<double> currentCo
 						}
 					}
 				}
+				//add the neighbouring box to the path 
 				path.push_back(current);
+				//change the current coordinates to the coordinates to the neighbour
 				currentCoords[0] += 256 / (pow(2, layers));
 			}
 		}
@@ -202,8 +417,8 @@ vector<vector<double>> findPath(vector<double> current, vector<double> currentCo
 	else if (currentCoords[1] - 256 / (pow(2, layers)) >= 0) {
 		//y-
 		xyz = ray.getCoordAt("y", currentCoords[1]);
-		if (xyz[0] <= currentCoords[0] + (256 / pow(2, oct.layers)) && xyz[0] >= currentCoords[0] &&
-			xyz[1] <= currentCoords[2] + (256 / pow(2, oct.layers)) && xyz[1] >= currentCoords[2]) {
+		if (xyz[0] <= currentCoords[0] + (256 / pow(2, layers)) && xyz[0] >= currentCoords[0] &&
+			xyz[1] <= currentCoords[2] + (256 / pow(2, layers)) && xyz[1] >= currentCoords[2]) {
 			xyzDone = false;
 			done = false;
 			for (int i = layers - 1; i >= 0; i--)
@@ -272,212 +487,109 @@ vector<vector<double>> findPath(vector<double> current, vector<double> currentCo
 		}
 	}
 
+	//if a new neighbour was found then the task is not finished
 	if (!done)
 	{
-		return findPath(current, currentCoords, path, ray, oct);
+		//return the path after finding the next neighbour
+		return findPath(current, currentCoords, path, ray, sign, layers);
 	}
-
+	//if no neighbour was found then the task is finished. return the complete path
 	return path;
-	   
 }
 
-vector<double> findPath(double current, vector<double> path, Ray ray) {
-	double x, y, z, box;
-	vector<double> xyz;
-	bool done = true;
+//prepares the data to find the path
+//runs findPath() with the necessary data and returns the path
+vector<vector<int>> findPath(Ray ray, Octree oct) {
+	//get the number of octree layers 
+	int layers = oct.getLayers();
+	//find the rays first contact with the octree
+	vector<int> first = firstContact(ray, oct);
+	//initialise the path with the first box
+	vector<vector<int>> path = { {first} };
+	//find the direction the ray is travelling
+	int sign = getSign(ray, oct, first);
+	//get the coordinates of the first box
+	vector<double> currentCoords = oct.getBoxCoord(first);
 
-	//x
-	xyz = ray.getCoordAt("x", 0.5);
-
-	if (xyz[0] <= 1 && xyz[0] >= 0 && xyz[1] <= 1 && xyz[1] >= 0) {
-		z = floor(xyz[1] * 2);
-		y = floor(xyz[0] * 2) * 2;
-		box = z + y;
-
-		if (current < 4)
-		{
-			if (!count(path.begin(), path.end(), current + 4) && current  == box)
-			{
-				current += 4;
-				path.push_back(current);
-				done = false;		
-			}
-
-		}
-		else if (!count(path.begin(), path.end(), current - 4) && (current - 4) == box) 
-		{
-			current -= 4;
-			path.push_back(current);
-			done = false;
-		}
-		
-	}
-	
-	//y
-	xyz = ray.getCoordAt("y", 0.5);
-
-	if (xyz[0] <= 1 && xyz[0] >= 0 && xyz[1] <= 1 && xyz[1] >= 0) {
-		z = floor(xyz[1] * 2);
-		x = floor(xyz[0] * 2) * 2;
-		box = z + x;
-
-
-		if (current == 0 || current == 1 || current == 4 || current == 5)
-		{
-			if (!count(path.begin(), path.end(), current + 2) && current == box)
-			{
-				current += 2;
-				path.push_back(current);
-				done = false;
-			}
-		}
-		else if (!count(path.begin(), path.end(), current - 2) && (current - 2) == box)
-		{
-			current -= 2;
-			path.push_back(current);
-			done = false;
-		}
-	}
-
-	//z
-	xyz = ray.getCoordAt("z", 0.5);
-
-	if (xyz[0] <= 1 && xyz[0] >= 0 && xyz[1] <= 1 && xyz[1] >= 0) {
-		y = floor(xyz[1] * 2) * 2;
-		x = floor(xyz[0] * 2) * 4;
-		box = y + x;
-
-		if (current == 0 || current == 2 || current == 4 || current == 6)
-		{
-			if (!count(path.begin(), path.end(), current + 1) && current == box)
-			{
-				current += 1;
-				path.push_back(current);
-				done = false;
-			}
-		}
-		else if (!count(path.begin(), path.end(), current - 1) && (current - 1) == box)
-		{
-			current -= 1;
-			path.push_back(current);
-			done = false;
-		}
-	}
-
-	if (!done)
-	{
-		return findPath(current, path, ray);
-	}
-
-	return path;
+	//find and return the path
+	return findPath(first, currentCoords, path, ray, sign, layers);
 
 }
 
-vector<double> getBoxAt(double layers, vector<double> coord, string axis) {
+//write the path to the text file path.txt
+void writeFile(vector<vector<int>> path) {
 
-	double total = 0;
-	vector<double> aBox, bBox, box;
+	ofstream myfile;
+	myfile.open("path.txt");
 
-	for (int i = 0; i < layers; i++)
+	for (size_t i = 0; i < path.size(); i++)
 	{
-		if (coord[0] > total + 128 / (pow(2, i)))
+		for (size_t j = 0; j < path[0].size(); j++)
 		{
-			total += 128 / (pow(2, i));
-			aBox.push_back(1);
+			myfile << path[i][j] << " ";
 		}
-		else
-		{
-			aBox.push_back(0);
-		}
+		myfile << endl;
 	}
-	total = 0;
-
-	for (int i = 0; i < layers; i++)
-	{
-		if (coord[1] > total + 128 / (pow(2, i)))
-		{
-			total += 128 / (pow(2, i));
-			bBox.push_back(1);
-		}
-		else
-		{
-			bBox.push_back(0);
-		}
-	}
-
-	if (axis == "x") {
-		for (int i = 0; i < layers; i++)
-		{
-			aBox[i] = aBox[i] * 2;
-			box.push_back(aBox[i] + bBox[i]);
-		}
-		return box;
-	}
-
-	if (axis == "y") {
-		for (int i = 0; i < layers; i++)
-		{
-			aBox[i] = aBox[i] * 4;
-			box.push_back(aBox[i] + bBox[i]);
-		}
-		return box;
-	}
-
-	if (axis == "z") {
-		for (int i = 0; i < layers; i++)
-		{
-			aBox[i] = aBox[i] * 4;
-			bBox[i] = bBox[i] * 2;
-			box.push_back(aBox[i] + bBox[i]);
-		}
-		return box;
-	}
-}
-
-vector<double> firstContact(Ray ray, Octree oct) {
-	vector<double> coord;
-
-	coord = ray.getCoordAt("x", 0);
-	if (coord[0] >= 0 && coord[0] < 256 && coord[1] >= 0 && coord[1] < 256) {
-		return getBoxAt(oct.getLayers(), coord, "x");
-	}
-
-	coord = ray.getCoordAt("y", 0);
-	if (coord[0] >= 0 && coord[0] < 256 && coord[1] >= 0 && coord[1] < 256) {
-		return getBoxAt(oct.getLayers(), coord, "y");
-	}
-
-	coord = ray.getCoordAt("z", 0);
-	if (coord[0] >= 0 && coord[0] < 256 && coord[1] >= 0 && coord[1] < 256) {
-		return getBoxAt(oct.getLayers(), coord, "z");
-	}
-
-	vector<double> bad = {8};
-	return bad;
 }
 
 int main()
 {
+	int layer;
+	double x1, x2, y1, y2, z1, z2;
+	bool done = false;
+	string coords;
+
+	cout << "Octree Ray Tracer" << endl << endl;
+	cout << "There are no checks for invalid input. Please double check inputs" << endl << endl;
+	cout << "Enter number of octree layers (1-8)" << endl;
+
+	cin >> layer;
+	cin.clear();
+	cin.ignore(256, '\n');
+
+	cout << "Enter vector coordinates (x1, y1, z1), (x2, y2, z2)" << endl;
+
+	cout << "x1: " << endl;
+	cin >> x1;
+	cin.clear();
+	cin.ignore(256, '\n');
+
+	cout << "y1: " << endl;
+	cin >> y1;
+	cin.clear();
+	cin.ignore(256, '\n');
+
+	cout << "z1: " << endl;
+	cin >> z1;
+	cin.clear();
+	cin.ignore(256, '\n');
+
+	cout << "x2: " << endl;
+	cin >> x2;
+	cin.clear();
+	cin.ignore(256, '\n');
+
+	cout << "y2: " << endl;
+	cin >> y2;
+	cin.clear();
+	cin.ignore(256, '\n');
+
+	cout << "z2: " << endl;
+	cin >> z2;
+	cin.clear();
+	cin.ignore(256, '\n');
+
+	cout << "Path is outputted to path.txt" << endl;
+
 	Octree oct;
-	oct.setLayers(8);
+	oct.setLayers(layer);
 
 	Ray ray;
-	ray.populate(0, 0, 0, 256, 256, 256);
+	ray.populate(x1, y1, z1, x2, y2, z2);
 
-	vector<double> first = firstContact(ray, oct);
+	vector<vector<int>> path = findPath(ray, oct);
 
-	vector<vector<double>> path = { {first} };
-
-	path = findPath(first, oct.getBoxCoord(first), path, ray, oct);
-
-	for (int i = 0; i < path.size(); i++)
-	{
-		for (int j = 0; j < oct.getLayers(); j++)
-		{
-			cout << path[i][j] << " ";
-		}
-		cout << endl;
-	}
+	writeFile(path);
 
 	return 0;
 		
