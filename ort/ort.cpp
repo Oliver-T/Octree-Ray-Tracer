@@ -16,11 +16,11 @@ This program finds the path of a given vector defined by 2 points in 3 dimension
 The path is written to text file path.txt
 The octree is a cube with coordinates (0, 0, 0) to (255, 255, 255).
 
-								(255, 255, 255)
-				____________________
-			   /  3		 /  7	   /|
+					(255, 255, 255)
+			    ____________________
+			   /  3	     /  7      /|
 			  /_________/_________/ |
-			 /  1	   /  5		 /| |
+			 /  1	   /  5	     /| |
 			/_________/_________/ |7|
 			|         |         | | |
 			|  1      |  5      |5|/|
@@ -28,7 +28,7 @@ The octree is a cube with coordinates (0, 0, 0) to (255, 255, 255).
 			|_________|_________|/|6|
 			|         |         | | /
 			|  0      |  4      |4|/
-z  y 		|         |         | /
+z  y 			|         |         | /
 | /			|_________|_________|/
 |/____x
 		(0, 0, 0)
