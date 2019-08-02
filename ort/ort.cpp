@@ -20,10 +20,10 @@ The path is written to text file path.txt
 The octree is a cube with coordinates (0, 0, 0) to (255, 255, 255).
 
 								(255, 255, 255)
-				____________________
-			   /  3		 /  7	   /|
+			    ____________________
+			   /  3	     /  7      /|
 			  /_________/_________/ |
-			 /  1	   /  5		 /| |
+			 /  1	   /  5	     /| |
 			/_________/_________/ |7|
 			|         |         | | |
 			|  1      |  5      |5|/|
@@ -31,10 +31,11 @@ The octree is a cube with coordinates (0, 0, 0) to (255, 255, 255).
 			|_________|_________|/|6|
 			|         |         | | /
 			|  0      |  4      |4|/
-z  y		|         |         | /
-| /			|_________|_________|/
-|/____x
-		(0, 0, 0)
+			|         |         | /
+z  y    	|_________|_________|/
+| /			
+|/____x (0, 0, 0)
+		
 
 
 Each box is defined by a list of numbers from it's largest parent to it's smallest child.
@@ -561,9 +562,6 @@ int main()
 		geek >> layer;
 	}
 
-
-
-
 	Octree oct;
 	oct.setLayers(layer);
 
@@ -584,26 +582,6 @@ int main()
 		cout << "Path is outputted to path.txt" << endl;
 	}
 
-	
-
-	return 0;	
-
-
-
-	/*
-	if (input.is_open()) {
-		int i = 0;
-		while (!input.eof()) {
-
-			if (i == 0) {
-				input >> layer;
-				i++;
-			}
-			else {
-				input >> x1 >> y1 >> z1 >> x2 >> y2 >> z2;
-				break;
-			}
-		}
-	}
-	*/
+	return 0;		
 }
+
