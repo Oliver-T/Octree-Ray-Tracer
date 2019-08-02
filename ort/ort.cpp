@@ -6,6 +6,9 @@
 #include <array>
 #include <fstream>
 #include "stdio.h"
+#include <sstream>
+#include <cstdlib>
+#include <ctime>
 using namespace std;
 
 /*
@@ -28,7 +31,7 @@ The octree is a cube with coordinates (0, 0, 0) to (255, 255, 255).
 			|_________|_________|/|6|
 			|         |         | | /
 			|  0      |  4      |4|/
-z  y 		|         |         | /
+z  y		|         |         | /
 | /			|_________|_________|/
 |/____x
 		(0, 0, 0)
@@ -534,52 +537,32 @@ void writeFile(vector<vector<int>> path) {
 
 int main()
 {
+	string r;
 	int layer;
 	double x1, x2, y1, y2, z1, z2;
-	bool done = false;
-	string coords;
 
-	cout << "Octree Ray Tracer" << endl << endl;
-	cout << "There are no checks for invalid input. Please double check inputs" << endl << endl;
-	cout << "Enter number of octree layers (1-8)" << endl;
+	ifstream input;
+	input.open("input.txt");
+	if (input.is_open()) {
+		input >> r >> x1 >> y1 >> z1 >> x2 >> y2 >> z2;	
+	}
+	input.close();
 
-	cin >> layer;
-	cin.clear();
-	cin.ignore(256, '\n');
+	if (r == "r")
+	{
+		srand(time(NULL));
+		layer = rand() % 8;
+		x1 = rand() % 256; x2 = rand() % 256; y1 = rand() % 256;
+		y2 = rand() % 256; z1 = rand() % 256; z2 = rand() % 256;
+	}
+	else
+	{
+		stringstream geek(r);
+		geek >> layer;
+	}
 
-	cout << "Enter vector coordinates (x1, y1, z1), (x2, y2, z2)" << endl;
 
-	cout << "x1: " << endl;
-	cin >> x1;
-	cin.clear();
-	cin.ignore(256, '\n');
 
-	cout << "y1: " << endl;
-	cin >> y1;
-	cin.clear();
-	cin.ignore(256, '\n');
-
-	cout << "z1: " << endl;
-	cin >> z1;
-	cin.clear();
-	cin.ignore(256, '\n');
-
-	cout << "x2: " << endl;
-	cin >> x2;
-	cin.clear();
-	cin.ignore(256, '\n');
-
-	cout << "y2: " << endl;
-	cin >> y2;
-	cin.clear();
-	cin.ignore(256, '\n');
-
-	cout << "z2: " << endl;
-	cin >> z2;
-	cin.clear();
-	cin.ignore(256, '\n');
-
-	cout << "Path is outputted to path.txt" << endl;
 
 	Octree oct;
 	oct.setLayers(layer);
@@ -588,9 +571,39 @@ int main()
 	ray.populate(x1, y1, z1, x2, y2, z2);
 
 	vector<vector<int>> path = findPath(ray, oct);
+	vector<vector<int>> bad = { {8} };
 
-	writeFile(path);
+	if (path == bad) {
+		ofstream myfile;
+		myfile.open("path.txt");
+		myfile << "Vector does not intersect the Octree";
+	}
+	else
+	{
+		writeFile(path);
+		cout << "Path is outputted to path.txt" << endl;
+	}
 
-	return 0;
-		
+	
+
+	return 0;	
+
+
+
+	/*
+	if (input.is_open()) {
+		int i = 0;
+		while (!input.eof()) {
+
+			if (i == 0) {
+				input >> layer;
+				i++;
+			}
+			else {
+				input >> x1 >> y1 >> z1 >> x2 >> y2 >> z2;
+				break;
+			}
+		}
+	}
+	*/
 }
